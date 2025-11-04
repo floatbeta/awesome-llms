@@ -1,0 +1,483 @@
+# Qwik and Qwik City
+
+> Qwik is a fundamentally new approach to web application frameworks that delivers instant-loading, interactive web apps without hydration through resumability. Qwik City is the meta-framework built on top of Qwik, providing file-based routing, layouts, middleware, data fetching, and server actions. Together, they enable developers to build high-performance web applications of any size or complexity with minimal JavaScript, achieving consistent performance at scale starting from approximately 1KB of initial JavaScript.
+
+Qwik represents a paradigm shift in web application architecture, reimagining performance from the ground up by eliminating hydration and adopting resumability as the foundational principle. Created by Miško Hevery, the originator of Angular, Qwik combines React-like developer experience with edge-native performance characteristics. Qwik City layers routing, layouts, and full-stack features onto Qwik's core component primitives, positioning it as the web framework equivalent to Next.js for React, Nuxt for Vue, or SvelteKit for Svelte.
+
+## Core Architecture and Resumability
+
+### The Resumability Concept
+
+Qwik's defining feature is **resumability**, a revolutionary approach that fundamentally differs from traditional hydration. Resumability pauses execution on the server and resumes execution on the client without replaying or re-downloading all application logic. When a user interacts with a Qwik application, the framework continues precisely where the server left off, eliminating the need to rebuild the application state and logic on the client.
+
+Traditional frameworks including React, Vue, and Angular use **hydration**, where server-rendered HTML is sent to the browser, then the entire framework reruns on the client to attach event handlers and make the page interactive. This requires downloading and executing all framework code twice—once on the server and again on the client. Hydration creates a significant Time to Interactive (TTI) delay, particularly for complex applications.
+
+Resumability sidesteps this problem entirely. The server serializes not only the application state (like other SSR frameworks) but also the framework state—where listeners are attached, which components are involved, and what values they hold. This information is encoded directly into the HTML through special attributes and metadata. When the browser receives this HTML, it understands the application structure without executing any framework code until absolutely necessary.
+
+### Fine-Grained Lazy Loading
+
+Qwik implements automatic, fine-grained lazy loading without developer intervention. The framework intelligently determines which JavaScript is needed for the current view and defers everything else until required. If a page contains only static text and no interactive elements, Qwik sends zero JavaScript for that page—except for minimal prefetching logic.
+
+When users interact with the page, Qwik lazy-loads only the code necessary to handle that specific interaction. For example, clicking a button loads only the button's click handler and related functions, not the entire application. This granular approach dramatically reduces initial bundle sizes and bandwidth consumption.
+
+Developers write normal Qwik components without manually deciding what to lazy-load. The Optimizer (written in Rust for performance) automatically extracts lazy-loadable units marked with the `$` suffix during the build process.
+
+### Server-Side Rendering and HTML-First Approach
+
+Qwik prioritizes server-side rendering, delivering fully rendered HTML to clients immediately. This HTML-first approach provides several advantages:
+
+- **Instant visual feedback**: Users see meaningful content instantly, improving perceived performance
+- **Search engine optimization**: Complete HTML is available to search engine crawlers without requiring client-side rendering
+- **Accessibility**: Screen readers and assistive technologies work with server-rendered content
+- **Progressive enhancement**: Basic functionality works even with JavaScript disabled
+- **Reduced client-side work**: JavaScript only handles interactivity, not initial rendering
+
+The server renders the application based on the incoming request (URL, query parameters, headers, etc.) and sends the complete HTML with embedded state and framework metadata. The browser displays this HTML immediately while downloading JavaScript in the background.
+
+## The Qwik Framework
+
+### Component Model
+
+Qwik uses JSX-based components similar to React, making it familiar to developers experienced with modern JavaScript frameworks. Components are defined as functions wrapped with `component$()`:
+
+```typescript
+import { component$, useSignal } from '@builder.io/qwik';
+
+export default component$(() => {
+  const count = useSignal(0);
+  
+  return (
+    <div>
+      <p>Count: {count.value}</p>
+      <button onClick$={() => count.value++}>Increment</button>
+    </div>
+  );
+});
+```
+
+The `$` suffix denotes the Optimizer boundary—where lazy-loading occurs. Functions marked with `$` are extracted during build and become lazy-loadable symbols.
+
+### State Management with Signals
+
+Qwik introduces **Signals** for reactive state management. Unlike React's `useState`, signals automatically optimize reactivity at a granular level. When signal values change, only the specific DOM elements that depend on those values are updated, not entire components.
+
+```typescript
+const count = useSignal(0);
+```
+
+Signals can be passed directly as props and mutated in child components without callback functions, simplifying state management compared to React's prop-drilling pattern.
+
+### Hooks and Reactivity
+
+Qwik provides hooks for lifecycle and side effects:
+
+- `useSignal()`: Creates reactive state
+- `useEffect$()`: Executes side effects (marked with `$` for lazy-loading)
+- `useVisibleTask$()`: Executes tasks only when the component is visible on screen
+- `useTask$()`: General-purpose task execution
+- `useResource$()`: Manages async data fetching with proper serialization
+- `useContext$()`: Accesses context values
+- `useStore()`: Creates reactive object state
+
+The `$` suffix indicates these hooks can be lazy-loaded and are invoked only when necessary.
+
+## The Qwik Optimizer
+
+### Build-Time Transformation
+
+The Qwik Optimizer is a Rust-based tool (available as WebAssembly) that transforms code during the build process. It scans for `$` symbols and extracts the following expression into separate lazy-loadable modules.
+
+Given a counter component:
+
+```typescript
+export const Counter = component$(() => {
+  const count = useSignal(0);
+  return (
+    <button onClick$={() => count.value++}>
+      {count.value}
+    </button>
+  );
+});
+```
+
+The Optimizer transforms it to:
+
+```typescript
+export const Counter = component(qrl('./chunk-a.js', 'Counter_onRender'));
+
+export const Counter_onRender = () => {
+  const count = useSignal(0);
+  return (
+    <button onClick$={qrl('./chunk-b.js', 'Counter_onClick', [count])}>
+      {count.value}
+    </button>
+  );
+};
+
+export const Counter_onClick = () => {
+  const [count] = useLexicalScope();
+  return count.value++;
+};
+```
+
+Each `$` creates a new chunk that can be loaded independently. This enables precise code splitting—only the required chunks load for each interaction.
+
+### QRL (Qwik Reference Location)
+
+QRL is Qwik's serialization mechanism for functions and components. QRLs encode the module path and exported symbol name, enabling the framework to load and execute code on-demand. QRLs maintain closure information, capturing variables in `useLexicalScope()`.
+
+## Qwik City: The Meta-Framework
+
+### File-Based Routing
+
+Qwik City uses directory-based routing, where file and folder structure automatically maps to URLs:
+
+- `src/routes/index.tsx` → `/`
+- `src/routes/about/index.tsx` → `/about`
+- `src/routes/blog/[id]/index.tsx` → `/blog/:id` (dynamic segment)
+- `src/routes/[...rest]/index.tsx` → `/any/path/here` (catch-all route)
+
+This convention-over-configuration approach simplifies route organization and enables straightforward URL-to-file mapping.
+
+### Layouts and Nesting
+
+Layouts define common UI structure shared across multiple pages. Nested layouts provide hierarchical structure:
+
+```
+src/routes/
+├── layout.tsx          (Root layout)
+├── index.tsx           (Home page)
+├── blog/
+│ ├── layout.tsx        (Blog-specific layout)
+│ ├── index.tsx         (Blog listing)
+│ └── [id]/index.tsx    (Blog post)
+└── about/index.tsx     (About page)
+```
+
+The `<Slot />` component renders child routes within layout boundaries. Multiple named layouts enable sophisticated layout composition patterns.
+
+### Data Loading with Loaders
+
+Loaders fetch data on the server, making it available to components:
+
+```typescript
+import { loader$ } from '@builder.io/qwik-city';
+
+export const usePostData = loader$(async (requestEvent) => {
+  const id = requestEvent.params.id;
+  return fetch(`/api/posts/${id}`).then(r => r.json());
+});
+
+export default component$(() => {
+  const post = usePostData();
+  
+  return <div>{post.value?.title}</div>;
+});
+```
+
+Loaders execute on the server with access to database connections, authentication tokens, and other server-only resources. Data serializes and flows to the client automatically.
+
+### Server Actions
+
+Server actions enable components to request server-side operations without explicit API endpoint creation:
+
+```typescript
+import { server$ } from '@builder.io/qwik-city';
+
+const addComment = server$(async (comment: string) => {
+  // This code runs only on the server
+  await db.comments.insert({ text: comment });
+});
+
+export default component$(() => {
+  return (
+    <form onSubmit$={async () => {
+      await addComment("User comment");
+    }}>
+      {/* form content */}
+    </form>
+  );
+});
+```
+
+Server actions seamlessly execute server code from components, handling serialization and error handling transparently.
+
+### Middleware
+
+Qwik City supports middleware for cross-cutting concerns:
+
+```typescript
+import { type RequestHandler } from '@builder.io/qwik-city';
+
+export const onRequest: RequestHandler = async (requestEvent) => {
+  // Authentication, logging, redirects, etc.
+  if (!isAuthenticated(requestEvent)) {
+    throw requestEvent.redirect(302, '/login');
+  }
+};
+```
+
+Middleware executes for all requests, enabling centralized handling of authentication, security headers, logging, and redirects.
+
+### Endpoints and APIs
+
+Endpoints define RESTful, GraphQL, or custom APIs:
+
+```typescript
+import { type RequestHandler } from '@builder.io/qwik-city';
+
+export const onGet: RequestHandler = async (requestEvent) => {
+  return new Response(JSON.stringify({ message: "Hello" }));
+};
+
+export const onPost: RequestHandler = async (requestEvent) => {
+  const data = await requestEvent.parseBody();
+  // Process data
+};
+```
+
+Endpoints coexist with rendered routes, enabling full-stack development within the same framework.
+
+### Static Site Generation (SSG)
+
+Qwik City supports pre-rendering entire sites to static HTML:
+
+```typescript
+export const getStaticPaths = () => [
+  { params: { id: '1' } },
+  { params: { id: '2' } },
+];
+```
+
+Pre-rendered pages are pure HTML and CSS with no server involvement, ideal for hosting on CDNs or static hosts like Netlify, Vercel, or Cloudflare Pages.
+
+## Advanced Features and Optimization
+
+### Prefetching
+
+Qwik City automatically prefetches modules that are likely to be used. The framework analyzes which interactions are available on the current page (clickable buttons, form submissions, etc.) and prefetches only the necessary modules in the background. This speculative prefetching improves perceived performance without unnecessary overhead.
+
+Developers can control prefetching behavior:
+
+```typescript
+import { prefetchCode } from '@builder.io/qwik';
+
+prefetchCode([Counter]);
+```
+
+### Middleware-Based Prefetching
+
+Service workers handle background prefetching, avoiding competition with user interactions. Prefetching occurs during idle time, prioritizing user interactions.
+
+### CSS Extraction and Optimization
+
+Qwik extracts critical CSS needed for initial page rendering, delivering only required styles in the `<head>`. Additional CSS loads on-demand as components become interactive. Scoped CSS ensures styles are isolated to components.
+
+### Image Optimization
+
+Qwik provides image components that automatically optimize images:
+
+```typescript
+import { Image } from '@builder.io/qwik-city';
+
+export default component$(() => {
+  return (
+    <Image
+      src="image.png"
+      width={100}
+      height={100}
+      alt="Description"
+    />
+  );
+});
+```
+
+Images load lazily, use appropriate formats (WebP, AVIF), and respect browser capabilities. Responsive images automatically adapt to different screen sizes.
+
+### Edge Computing
+
+Qwik City integrates seamlessly with edge platforms:
+
+- **Cloudflare Pages/Workers**: Run Qwik City on Cloudflare's edge network
+- **Vercel Edge Functions**: Execute server code at edge locations near users
+- **Netlify Edge Functions**: Similar edge execution with Netlify
+- **Deno Deploy**: Edge deployment with Deno runtime
+
+Edge platforms reduce latency by executing server code close to users, dramatically improving server response times.
+
+## Development Experience
+
+### JSX and TypeScript
+
+Developers familiar with React immediately understand Qwik's component syntax. Full TypeScript support with strong type inference enables IDE autocompletion and type safety.
+
+### Hot Module Replacement (HMR)
+
+Vite provides instant HMR during development. Changes to components reflect in the browser without page reloads, enabling rapid iteration.
+
+### Debugging
+
+Qwik provides comprehensive debugging support:
+
+- **Browser DevTools**: Component tree inspection, state inspection
+- **Server-Side Rendering Debugging**: Debug SSR logic independently
+- **Source Maps**: JavaScript maps to TypeScript sources
+
+### Starters and Examples
+
+Qwik provides multiple starters:
+
+- `npm create qwik@latest`: Standard app starter with Qwik City
+- `npm create qwik library`: Component library template
+- Integrations with UI frameworks (Tailwind CSS, Styled Components)
+
+## Deployment and Hosting
+
+### Adapters
+
+Qwik City includes adapters for various deployment platforms:
+
+- **Express**: Traditional Node.js servers
+- **Cloudflare Pages**: Serverless at the edge
+- **Netlify**: Serverless edge functions
+- **Vercel**: Serverless edge platform
+- **Deno Deploy**: Edge runtime
+- **Static Site Generation**: Pure HTML/CSS deployment
+- **Custom Node.js**: Flexible server deployments
+
+Each adapter handles platform-specific build configuration and middleware translation.
+
+### Production Builds
+
+The `build` command generates optimized production artifacts:
+
+```bash
+npm run build
+```
+
+This creates:
+- Optimized JavaScript bundles with aggressive tree-shaking
+- Pre-rendered HTML (if SSG enabled)
+- Optimized CSS with critical CSS extraction
+- Source maps for production debugging
+
+## Ecosystem and Integration
+
+### Component Libraries
+
+The Qwik ecosystem includes several UI component libraries:
+
+- **Flowbite Qwik**: Free, open-source UI components (41+ components) based on Tailwind CSS
+- **QwikUI**: Built-in UI primitives designed for Qwik
+- **Community libraries**: Growing ecosystem of third-party components
+
+### Framework Integration
+
+Qwik supports integration with React components via `qwikify$()`:
+
+```typescript
+import { qwikify$ } from '@builder.io/qwik-react';
+import { ReactComponent } from 'react-lib';
+
+const QwikifiedComponent = qwikify$(ReactComponent);
+```
+
+This enables gradual adoption of Qwik, mixing Qwik and React components within the same application. React components are isolated and hydrated independently, avoiding performance penalties.
+
+### Styling Solutions
+
+Qwik integrates with modern CSS solutions:
+
+- **Tailwind CSS**: Utility-first CSS framework
+- **Styled Components**: CSS-in-JS with scoped styling
+- **PostCSS**: CSS transformation
+- **Global CSS**: Traditional stylesheets
+- **Scoped CSS**: Component-scoped styles
+
+## Performance Characteristics
+
+### Initial Bundle Size
+
+Qwik applications start with approximately 1KB of framework code, compared to 50-200KB for traditional frameworks. Application code loads only on-demand through interaction.
+
+### Time to Interactive (TTI)
+
+Qwik achieves dramatic TTI improvements:
+
+- Server-rendered HTML provides instant visual feedback
+- No hydration needed—users can interact before JavaScript downloads
+- Interactive code loads on-demand through prefetching
+
+### Runtime Performance
+
+Qwik's signal-based reactivity updates only affected DOM elements. Unlike React's virtual DOM reconciliation affecting entire components, Qwik updates are precisely targeted.
+
+### Lighthouse Scores
+
+Qwik applications typically achieve:
+
+- **Largest Contentful Paint (LCP)**: Sub-500ms
+- **First Input Delay (FID)**: Sub-50ms
+- **Cumulative Layout Shift (CLS)**: Near 0.0
+- **Lighthouse Scores**: 95+
+
+### Comparative Performance
+
+In benchmarks against Next.js and other frameworks, Qwik typically demonstrates:
+
+- 3-4x less JavaScript shipped initially
+- 2-3x faster Time to Interactive
+- Similar or better overall page speed
+
+## Qwik 2.0 Roadmap
+
+Qwik 2.0, currently in development, focuses on:
+
+- **Reduced HTML serialization overhead**: More efficient encoding of component boundaries and listener locations
+- **Cleaner HTML output**: Virtual nodes will be moved to the end of the HTML stream
+- **More efficient resuming**: Lazy materialization of only necessary virtual nodes
+- **Backward compatibility**: No breaking changes, focused on internal optimizations
+
+Qwik 2.0 maintains the resumability philosophy while reducing the HTML footprint and runtime overhead.
+
+## Comparisons with Other Frameworks
+
+### vs. React + Next.js
+
+- **Initial JavaScript**: Qwik starts with ~1KB vs. Next.js with 50-200KB
+- **Hydration**: Qwik uses resumability (no re-execution), Next.js requires hydration
+- **State Management**: Qwik signals provide fine-grained updates vs. React's component-level updates
+- **Server/Client Boundary**: Qwik makes this mostly transparent; Next.js requires explicit `'use client'` directives
+
+### vs. Astro
+
+- **JavaScript by Default**: Qwik includes framework code for interactivity; Astro ships no framework by default
+- **Interactivity Model**: Qwik enables interactive applications; Astro focuses on static content with islands of interactivity
+- **Use Case**: Qwik for interactive applications; Astro for content-focused sites
+
+### vs. SvelteKit
+
+- **Philosophy**: Qwik emphasizes resumability; SvelteKit uses traditional hydration
+- **Bundle Size**: Qwik smaller for large applications; SvelteKit competitive for smaller apps
+- **Developer Experience**: Both excellent; Qwik uses JSX-like syntax; SvelteKit uses Svelte syntax
+
+## Key Resources and References
+
+- Official Qwik Documentation: https://qwik.dev
+- Qwik City Documentation: https://qwik.dev/docs/qwikcity/
+- Qwik GitHub Repository: https://github.com/QwikDev/qwik
+- Qwik Discord Community: https://qwik.dev/docs/community/
+- Qwik Interactive Tour: https://antonz.org/go-1-25/
+- Qwik Deployment Guides: https://qwik.dev/docs/deployments/
+- Flowbite Qwik: https://flowbite-qwik.com
+- Cloudflare Pages Qwik Guide: https://developers.cloudflare.com/pages/framework-guides/deploy-a-qwik-site/
+- Vercel Qwik Template: https://vercel.com/templates/qwik/qwik-starter-kit
+- Builder.io Blog: https://builder.io/blog
+
+## Summary
+
+Qwik and Qwik City represent a fundamental rethinking of web application architecture, prioritizing performance through resumability instead of hydration. By eliminating the need to rerun framework logic on the client and implementing fine-grained lazy loading, Qwik delivers consistently fast, interactive web applications regardless of complexity or scale.
+
+Qwik City provides the meta-framework layer with file-based routing, layouts, middleware, and full-stack capabilities, enabling developers to build complete applications using a single framework and language. The combination achieves exceptional performance metrics while maintaining excellent developer experience through familiar JSX syntax, TypeScript support, and progressive enhancement.
+
+For developers building interactive web applications with performance as a primary concern—especially for e-commerce, real-time applications, content-heavy sites, or edge deployments—Qwik and Qwik City offer compelling advantages. The resumability-first architecture, automatic code splitting, and edge-native design position Qwik as a forward-thinking framework for the modern web platform.
