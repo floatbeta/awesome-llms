@@ -1,0 +1,220 @@
+# WebGPU
+
+> Modern GPU API for the web
+
+## Overview
+
+WebGPU is a modern web API that provides efficient graphics and compute capabilities for web applications. It is designed to be compatible with modern GPU APIs like Vulkan, Metal, and Direct3D 12, while providing a web-friendly interface.
+
+## Key Concepts
+
+### GPU Device
+The GPU device is the primary interface to the GPU. It provides methods to create resources, submit commands, and query capabilities.
+
+### Adapters
+Physical GPU adapters are enumerated and selected through the navigator.gpu interface. Each adapter represents a physical GPU or a software implementation.
+
+### Pipelines
+WebGPU uses pipeline objects to encapsulate the state needed to execute GPU operations:
+- **Render Pipelines**: For graphics operations (vertex and fragment shaders)
+- **Compute Pipelines**: For compute operations
+
+### Resources
+WebGPU provides several resource types:
+- **Buffers**: Linear memory for vertex data, uniforms, storage, etc.
+- **Textures**: Multi-dimensional arrays for image data
+- **Samplers**: Define how textures are sampled
+- **Bind Groups**: Group related resources together
+
+### Command Encoding
+Commands are recorded into command buffers using command encoders:
+- **Render Pass Encoder**: Records rendering commands
+- **Compute Pass Encoder**: Records compute commands
+- **Command Encoder**: General command recording
+
+### Shaders
+WebGPU uses WGSL (WebGPU Shading Language) for shader programming. WGSL is a modern shading language designed specifically for WebGPU.
+
+## Basic Usage
+
+### Initialize WebGPU
+```javascript
+// Request adapter
+const adapter = await navigator.gpu.requestAdapter();
+if (!adapter) {
+  throw new Error("WebGPU not supported");
+}
+
+// Request device
+const device = await adapter.requestDevice();
+```
+
+### Create a Buffer
+```javascript
+const buffer = device.createBuffer({
+  size: 64,
+  usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+});
+```
+
+### Create a Texture
+```javascript
+const texture = device.createTexture({
+  size: { width: 512, height: 512 },
+  format: 'rgba8unorm',
+  usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+});
+```
+
+### Create a Render Pipeline
+```javascript
+const pipeline = device.createRenderPipeline({
+  layout: 'auto',
+  vertex: {
+    module: device.createShaderModule({ code: vertexShaderCode }),
+    entryPoint: 'main',
+  },
+  fragment: {
+    module: device.createShaderModule({ code: fragmentShaderCode }),
+    entryPoint: 'main',
+    targets: [{ format: 'bgra8unorm' }],
+  },
+});
+```
+
+### Submit Commands
+```javascript
+const commandEncoder = device.createCommandEncoder();
+const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
+passEncoder.setPipeline(pipeline);
+passEncoder.draw(3, 1, 0, 0);
+passEncoder.end();
+device.queue.submit([commandEncoder.finish()]);
+```
+
+## Buffer Usage Flags
+
+- `VERTEX`: Buffer used as vertex buffer
+- `INDEX`: Buffer used as index buffer
+- `UNIFORM`: Buffer used as uniform buffer
+- `STORAGE`: Buffer used as storage buffer
+- `COPY_SRC`: Buffer can be source of copy operation
+- `COPY_DST`: Buffer can be destination of copy operation
+- `MAP_READ`: Buffer can be mapped for reading
+- `MAP_WRITE`: Buffer can be mapped for writing
+
+## Texture Formats
+
+Common texture formats:
+- `rgba8unorm`: 8-bit unsigned normalized RGBA
+- `bgra8unorm`: 8-bit unsigned normalized BGRA
+- `rgba16float`: 16-bit float RGBA
+- `rgba32float`: 32-bit float RGBA
+- `depth24plus`: 24-bit depth format
+- `depth32float`: 32-bit float depth format
+
+## WGSL Shader Example
+
+```wgsl
+// Vertex shader
+@vertex
+fn vs_main(@builtin(vertex_index) vertexIndex: u32) -> @builtin(position) vec4<f32> {
+  var pos = array<vec2<f32>, 3>(
+    vec2<f32>(0.0, 0.5),
+    vec2<f32>(-0.5, -0.5),
+    vec2<f32>(0.5, -0.5)
+  );
+  return vec4<f32>(pos[vertexIndex], 0.0, 1.0);
+}
+
+// Fragment shader
+@fragment
+fn fs_main() -> @location(0) vec4<f32> {
+  return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+}
+```
+
+## Error Handling
+
+WebGPU uses an asynchronous error handling model:
+
+```javascript
+device.addEventListener('uncapturederror', (event) => {
+  console.error('WebGPU error:', event.error);
+});
+
+// For validation errors during device creation
+device.pushErrorScope('validation');
+// ... operations that might error
+const error = await device.popErrorScope();
+if (error) {
+  console.error('Validation error:', error.message);
+}
+```
+
+## Browser Support
+
+WebGPU is supported in:
+- Chrome/Edge 113+ (stable)
+- Firefox (behind flag)
+- Safari (Technology Preview)
+
+Check support with:
+```javascript
+if (!navigator.gpu) {
+  console.log('WebGPU not supported');
+}
+```
+
+## Resources
+
+- Official Specification: https://www.w3.org/TR/webgpu/
+- MDN Documentation: https://developer.mozilla.org/en-US/docs/Web/API/WebGPU_API
+- WebGPU Samples: https://webgpu.github.io/webgpu-samples/
+- WGSL Specification: https://www.w3.org/TR/WGSL/
+
+## Common Patterns
+
+### Canvas Rendering
+```javascript
+const canvas = document.querySelector('canvas');
+const context = canvas.getContext('webgpu');
+const format = navigator.gpu.getPreferredCanvasFormat();
+
+context.configure({
+  device: device,
+  format: format,
+});
+```
+
+### Compute Shader
+```javascript
+const computePipeline = device.createComputePipeline({
+  layout: 'auto',
+  compute: {
+    module: device.createShaderModule({ code: computeShaderCode }),
+    entryPoint: 'main',
+  },
+});
+
+const commandEncoder = device.createCommandEncoder();
+const passEncoder = commandEncoder.beginComputePass();
+passEncoder.setPipeline(computePipeline);
+passEncoder.dispatchWorkgroups(64);
+passEncoder.end();
+device.queue.submit([commandEncoder.finish()]);
+```
+
+### Binding Resources
+```javascript
+const bindGroup = device.createBindGroup({
+  layout: pipeline.getBindGroupLayout(0),
+  entries: [
+    { binding: 0, resource: { buffer: uniformBuffer } },
+    { binding: 1, resource: sampler },
+    { binding: 2, resource: texture.createView() },
+  ],
+});
+
+passEncoder.setBindGroup(0, bindGroup);
+```
