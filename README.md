@@ -6,7 +6,7 @@ A curated collection of resources and information related to Large Language Mode
 
 ## Contents
 
-- **astro-llms-full.txt**: A compilation of LLM resources, projects, and developments in the Astro.js framework ecosystem.
+- **astro-llms-full.txt**: A compilation of LLM resources, projects, and developments in the Astro.js framework ecosystem. | [Astro LLMS](https://raw.githubusercontent.com/floatbeta/awesome-llms/refs/heads/main/astro-llms-full.txt)
 - **golang-llms-full.txt**: A list of LLM tools, libraries, and solutions relevant to the Go (Golang) programming language.
 - **qwik-qwikcity-llms-full.txt**: References and links for LLM integration and utilities within the Qwik and QwikCity frameworks.
 - **webgl-llms-full.txt**: Information and projects connecting LLMs with WebGL technologies.
