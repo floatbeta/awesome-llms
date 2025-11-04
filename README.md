@@ -9,7 +9,6 @@ A curated collection of resources and information related to Large Language Mode
 - **qwik-qwikcity-llms-full.txt**: References and links for LLM integration and utilities within the Qwik and QwikCity frameworks.
 - **webgl-llms-full.txt**: Information and projects connecting LLMs with WebGL technologies.
 - **webgpu-llms-full.txt**: A collection of resources for running and optimizing LLMs using WebGPU.
-- **6f2ad2ef-0cd1-4f74-a56d-f1c85d0887ff.png**: An illustrative or reference image connected to the theme of the repository.
 
 Each `.txt` file contains handpicked links, libraries, guides, and overviews tailored to developers and enthusiasts working in these different technology stacks.
 
