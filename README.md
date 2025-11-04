@@ -1,6 +1,8 @@
 # Awesome LLMS
 
-A curated collection of resources and information related to Large Language Models (LLMs), organized by topic and technology. This repository contains comprehensive text files detailing notable projects, tools, and advancements in various LLM-related domains.
+![Awesome LLMS Banner](6f2ad2ef-0cd1-4f74-a56d-f1c85d0887ff.png)
+
+A curated collection of resources and information related to Large Language Models (LLMs), organized by topic and technology. This repository contains comprehensive text files detailing notable projects, tools, and guides in the LLM space.
 
 ## Contents
 
