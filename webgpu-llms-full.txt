@@ -1,0 +1,131 @@
+# WebGPU
+
+> WebGPU is a modern, cross-platform web graphics and compute API that enables efficient GPU acceleration for graphics, machine learning, and general-purpose computations directly in web browsers. It provides a standardized interface for accessing GPU capabilities with improved performance, flexibility, and safety compared to WebGL.
+
+WebGPU is the next-generation web graphics and compute API developed collaboratively by the W3C's "GPU for the Web" Community Group. It represents a significant advancement over WebGL, offering three to four times improvements in machine learning model inference performance and enabling flexible GPU programming with first-class support for general-purpose computations.
+
+## Overview and Core Concepts
+
+WebGPU is fundamentally designed to provide web developers with safe, efficient access to GPU devices for both graphics rendering and general-purpose GPU (GPGPU) computation. Unlike WebGL, which was primarily designed for graphics with limited compute capabilities, WebGPU offers equivalent or superior graphics capabilities while adding robust support for parallel computing workloads.
+
+The API is built on three core programming models: vertex shaders for computing vertex positions and transformations, fragment shaders for computing pixel colors and effects, and compute shaders for general-purpose parallel computations. These shaders are written in WebGPU Shading Language (WGSL), a modern, strongly-typed shader language influenced by Rust that emphasizes safety, portability, and explicit resource binding.
+
+WebGPU abstracts over different GPU backends including Vulkan, Metal, and Direct3D 12, enabling the same JavaScript code to run efficiently across Windows, macOS, ChromeOS, iOS, Android, and other platforms. The API integrates seamlessly with the web platform through promises, provides clear error messages for debugging, and supports modern web standards like web workers for non-blocking GPU operations.
+
+## Browser Support and Availability
+
+WebGPU has achieved significant cross-browser availability as of 2025. Chrome 113 and later on Windows (Direct3D 12), macOS (Metal), and ChromeOS (Vulkan) support WebGPU, with Android support enabled in Chrome 121 for devices with ARM and Qualcomm GPUs. Firefox 141 and later on Windows provides WebGPU support, and Safari 26 added WebGPU support on macOS, iOS 18, iPadOS 18, and visionOS 2.
+
+For development purposes, feature detection is essential. Developers should check for `navigator.gpu` to determine WebGPU availability and implement appropriate fallbacks for unsupported browsers. Linux support and expanded platform coverage continues to roll out.
+
+## Core API Architecture
+
+The WebGPU architecture consists of several key components that work together to enable GPU programming:
+
+**Device and Adapter**: Applications first request a GPU adapter using `navigator.gpu.requestAdapter()`, which represents a specific GPU in the system. From the adapter, developers request a device using `requestDevice()`, which serves as the primary interface for creating resources and executing commands on the GPU. The adapter-device model allows applications to query device capabilities and limits.
+
+**Resources**: WebGPU provides several fundamental resource types. Buffers store raw data on the GPU and can be used for vertices, uniforms, storage, or index data. Textures represent 2D, 3D, or cube-map images with various formats. Samplers enable filtering and addressing modes for texture sampling. These resources are immutable after creation regarding their structure, though their contents can be modified.
+
+**Pipelines**: Render pipelines define the complete state for graphics rendering, including vertex and fragment shaders, color attachment formats, and blend states. Compute pipelines encapsulate compute shader programs. Pipelines in WebGPU are expensive to create but are immutable once created, enabling the API to optimize performance.
+
+**Command Encoding**: Applications use command encoders to record GPU commands into command buffers. Render pass encoders handle graphics commands while compute pass encoders manage compute operations. This deferred execution model allows efficient batching and scheduling of GPU work.
+
+**Bind Groups and Layouts**: Bind groups associate resources (buffers, textures, samplers) with shader bindings. The layout describes how many bind groups exist, what resources each contains, and their access patterns. Explicit layouts enable efficient resource binding and sharing across pipelines.
+
+## WebGPU Shading Language (WGSL)
+
+WGSL is a modern shader language designed specifically for WebGPU, emphasizing safety, portability, and human readability. Unlike legacy shading languages like GLSL or HLSL, WGSL includes no preprocessor, requires explicit type conversions, and enforces strict validation to prevent undefined behavior.
+
+WGSL supports three shader stages: vertex shaders that compute per-vertex transformations and positions, fragment shaders that compute per-pixel colors and effects, and compute shaders for general-purpose parallel computations. Vertex shaders receive input attributes and produce values for rasterization, with transformed vertex data potentially flowing into fragment shaders.
+
+Fragment shaders execute per-fragment during rasterization and write color outputs to render targets. They can sample from textures and read from storage buffers. Compute shaders execute in configurable workgroups, with each invocation receiving a global invocation ID to determine which data elements it should process.
+
+WGSL's type system is strictly enforced. Supported types include scalar types (f32, i32, u32, bool), vector types (vec2f, vec3f, vec4f, etc.), matrix types (mat2x2f through mat4x4f), and array types. The language supports structs for organizing related data and provides memory views, textures, and samplers for data access patterns.
+
+Resource binding in WGSL uses explicit annotations. The `@group(n)` attribute specifies which bind group a resource belongs to, while `@binding(m)` identifies the resource's position within that group. The `var<T>` syntax with qualifiers like `<storage, read_write>`, `<uniform>`, or `<handle>` specifies how resources are accessed.
+
+## Graphics Rendering Pipeline
+
+WebGPU's graphics pipeline enables efficient rendering of complex scenes. The pipeline begins with vertex processing, where vertex shaders transform input positions and attributes. Vertices are typically organized into triangles, lines, or points via the primitive topology specification.
+
+Rasterization converts vertex output into fragments at pixel locations. The GPU determines which pixels are covered by the primitive, and for each covered pixel, it executes the fragment shader. Fragment shaders compute colors and other per-pixel values that get written to render targets.
+
+The rendering process involves several key steps: creating render pipelines that specify shaders and output formats, creating render pass descriptors that define color and depth attachments, encoding render commands that set pipelines and resources, and submitting command buffers for execution. Render passes can include multiple draw calls, each potentially using different pipelines, resources, or parts of the framebuffer.
+
+WebGPU supports various primitive topologies including point lists, line lists, line strips, triangle lists, and triangle strips. It provides depth testing, stencil operations, and blending for advanced rendering effects. Multi-sampling anti-aliasing (MSAA) is supported through sample counts in render pass descriptors.
+
+## General-Purpose GPU Computing
+
+WebGPU's compute pipeline enables efficient general-purpose GPU computation without graphics overhead. Compute shaders are invoked in configurable workgroups, where each workgroup contains multiple threads that can cooperatively solve problems through shared memory and synchronization primitives.
+
+The compute execution model is invoked through `dispatchWorkgroups(dimX, dimY, dimZ)` which executes the compute shader across a 3D grid. Each invocation receives a global invocation ID accessible via the `@builtin(global_invocation_id)` attribute. The shader's `@workgroup_size(dimX, dimY, dimZ)` attribute defines how many threads execute per workgroup.
+
+Compute shaders access data through storage buffers and textures. Storage buffers provide flexible read-write access to structured data, supporting both read and read-write modes. Atomic operations enable safe concurrent access from multiple threads. Workgroup-local storage enables fast inter-thread communication within a workgroup through the `var<workgroup>` address space.
+
+Synchronization primitives including `workgroupBarrier()` for synchronizing threads within a workgroup and `storageBarrier()` for ensuring storage consistency enable coordinated computation patterns. These primitives are essential for implementing algorithms like parallel reduction, prefix sum, and other collective operations.
+
+## Library Support and Ecosystem
+
+The WebGPU ecosystem includes support from major graphics libraries and frameworks. Three.js, a leading JavaScript 3D graphics library, implements WebGPU support enabling modern rendering techniques through a familiar API. Babylon.js has achieved full WebGPU support with optimized renderer implementations. TensorFlow.js supports WebGPU-optimized implementations of most operators, enabling efficient machine learning inference in browsers.
+
+PlayCanvas has announced initial WebGPU support for their WebGL-based platform. Specialized libraries continue emerging for specific use cases. The wgpu library provides a high-level Rust API for WebGPU and serves as the foundation for Firefox's WebGPU implementation. The Dawn library used in Chromium provides a C++ implementation of WebGPU.
+
+## Performance Characteristics and Optimization
+
+WebGPU achieves performance improvements through several mechanisms. Direct GPU access eliminates WebGL's abstraction overhead. Compute shader support enables algorithms that would require complex graphics tricks in WebGL to be expressed directly. The API design enables better CPU-GPU synchronization and reduces unnecessary state management.
+
+However, WebGPU programming requires careful optimization for maximum performance. Buffer management is critical, with careful attention to memory bandwidth and texture cache efficiency. Shader compilation happens asynchronously during device creation, requiring careful pipeline creation and management. Workgroup sizing in compute shaders significantly impacts performance through occupancy and cache efficiency considerations.
+
+For graphics workloads, batching draw calls reduces overhead. Vertex buffer layout affects cache performance and data transformation efficiency. Texture formats and access patterns significantly impact sampling performance. Render pass organization affects tile-based deferred rendering efficiency on mobile GPUs.
+
+## Use Cases and Applications
+
+WebGPU enables new classes of web applications previously impractical or impossible. Complex 3D applications including computer-aided design (CAD) tools benefit from improved drawing performance for highly detailed scenes. The reduced per-draw overhead enables rendering of scenes with millions of individual objects at interactive framerates.
+
+Machine learning applications benefit significantly from WebGPU's compute capabilities. Model inference for image classification, natural language processing, and other tasks runs efficiently without server round-trips, enabling privacy-preserving and low-latency AI features. Libraries like WebLLM enable full large language model inference directly in browsers using quantized models and WebGPU acceleration.
+
+Video processing and streaming applications can use compute shaders for real-time effects, filters, and encoding operations. Virtual reality and augmented reality experiences benefit from improved graphics performance and lower latency. Physics simulations, particle systems, and other computational graphics techniques execute efficiently through compute shaders.
+
+Productivity applications including document processing, data visualization, and scientific computing benefit from GPU acceleration. Medical imaging, geospatial data visualization, and other specialized domains can leverage WebGPU for interactive analysis of large datasets.
+
+## Security and Safety Model
+
+WebGPU incorporates a comprehensive security model designed for safe execution in browsers. Resource creation is strictly typed and validated, preventing many common GPU programming errors. Shaders undergo compilation with strict validation including type checking, memory safety verification, and resource binding validation.
+
+The API enforces resource synchronization to prevent data races and consistency issues. Cross-origin resource sharing (CORS) restrictions apply to canvas contexts and resource access. The `device.lost` promise enables applications to handle GPU device loss gracefully, implementing recovery mechanisms for scenarios like GPU reset or driver updates.
+
+Error handling provides detailed diagnostic information through validation errors that are reported but don't crash the application. The error callback system enables debugging and monitoring of validation failures during development and production.
+
+## Development Tools and Resources
+
+The W3C maintains the official WebGPU specification at https://www.w3.org/TR/webgpu/ and WGSL specification at https://www.w3.org/TR/WGSL/. MDN Web Docs provides comprehensive documentation and examples. The WebGPU Samples project (https://webgpu.github.io/samples/) demonstrates various techniques and features.
+
+WebGPU Fundamentals (https://webgpufundamentals.org/) provides in-depth educational content covering basic concepts through advanced techniques. Browser implementations including Dawn (Chromium), wgpu (Firefox), and WebKit provide reference implementations and debugging tools.
+
+Development involves typical GPU programming considerations: asynchronous resource creation, careful buffer management, shader compilation and error handling, and performance profiling. Browser developer tools including Chrome's WebGPU timeline profiling and logging provide performance analysis capabilities.
+
+## Future Developments and Roadmap
+
+WebGPU standardization continues as a W3C candidate recommendation. Planned enhancements include additional texture formats, improved debugging capabilities, extended shader features including templates and generics, and performance improvements through new optimization opportunities.
+
+Platform coverage continues expanding to additional systems and browsers. Linux support is in development across multiple browsers. Mobile platform support continues improving with enhanced driver support on various GPU vendors.
+
+Research directions include improved shader compilation strategies, better optimization for heterogeneous hardware architectures, and new techniques for balancing performance across diverse GPU capabilities. Community-driven development continues addressing real-world use cases and developer feedback.
+
+## Key Resources and References
+
+- WebGPU Specification (W3C): https://www.w3.org/TR/webgpu/
+- WGSL Specification (W3C): https://www.w3.org/TR/WGSL/
+- MDN WebGPU Documentation: https://developer.mozilla.org/en-US/docs/Web/API/WebGPU_API
+- WebGPU Explainer: https://gpuweb.github.io/gpuweb/explainer/
+- WebGPU Samples: https://webgpu.github.io/samples/
+- WebGPU Fundamentals: https://webgpufundamentals.org/
+- Chrome for Developers - WebGPU: https://developer.chrome.com/docs/web-platform/webgpu/overview
+- Three.js WebGPU Examples: https://threejs.org/examples/
+- Babylon.js Documentation: https://doc.babylonjs.com/
+- TensorFlow.js WebGPU Backend: https://www.tensorflow.org/js/guide/platform_environment
+- WebLLM Project: https://github.com/mlc-ai/web-llm
+
+## Key Takeaways
+
+WebGPU represents a modern evolution of GPU programming on the web, providing developers with direct, safe, and efficient GPU access. Its cross-platform design, comprehensive API, and strong performance characteristics position it as the successor to WebGL for web graphics and new computational workloads. By combining graphics rendering capabilities with general-purpose compute support, WebGPU enables a new generation of web applications that leverage GPU acceleration for improved performance, responsiveness, and new capabilities previously impractical on the web platform.
