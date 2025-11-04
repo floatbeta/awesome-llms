@@ -1,0 +1,544 @@
+# Astro
+
+> Astro is a modern web framework optimized for building fast, content-driven websites with minimal JavaScript. It uses an "islands architecture" that ships zero JavaScript by default, rendering HTML on the server and hydrating only the interactive components (islands) that need interactivity. Astro enables developers to build with any JavaScript framework—React, Vue, Svelte, Solid, Lit, Preact—while maintaining exceptional performance and developer experience.
+
+Astro represents a paradigm shift in web development, prioritizing content delivery and performance over complex client-side logic. Created by Fred K. Schott and a community of contributors, Astro has rapidly become a favorite among developers building content-rich websites, blogs, documentation, landing pages, and e-commerce sites. By combining server-first rendering with optional island-based interactivity, Astro achieves the speed of static sites with the flexibility of modern interactive applications.
+
+## Core Architecture and Philosophy
+
+### Islands Architecture
+
+Astro's defining innovation is **Islands Architecture**, also called partial hydration. This approach fundamentally differs from traditional single-page application (SPA) frameworks. In traditional SPAs like React, the entire page hydrates on the client, requiring all framework code to execute before the page becomes interactive.
+
+Islands Architecture inverts this model. The server renders the entire page as static HTML by default. Only specific interactive components—the "islands"—receive JavaScript and hydrate on the client. The rest of the page remains as lightweight, interactive HTML requiring no JavaScript.
+
+For example, a blog post with a comment section and rating widget works like this:
+
+1. The server renders the entire blog page as static HTML
+2. The comment section and rating widget (islands) receive JavaScript and become interactive
+3. The blog content, navigation, footer, and other static elements remain as pure HTML
+
+Each island is independent, lazy-loading only when necessary. Islands can use different frameworks—one island might be React while another uses Vue—all functioning harmoniously on the same page.
+
+This approach delivers multiple benefits:
+
+- **Minimal JavaScript**: Only interactive components receive framework code, dramatically reducing bundle sizes
+- **Fast initial load**: Static HTML renders immediately without JavaScript downloads or execution delays
+- **Automatic code splitting**: Each island loads its dependencies independently
+- **Framework flexibility**: Different frameworks can coexist without conflicts
+- **Progressive enhancement**: Sites work without JavaScript; interactivity progressively enhances functionality
+
+### Server-First Architecture
+
+Astro prioritizes server-side rendering, a fundamental design principle. The server renders all content, computing the complete HTML response before sending it to the browser. This server-first approach provides several advantages:
+
+- **Instant content delivery**: Users see meaningful content immediately—the browser displays HTML before JavaScript downloads
+- **Search engine optimization**: Complete HTML is available to search engine crawlers without requiring client-side rendering
+- **Accessibility**: Screen readers and assistive technologies work with server-rendered content immediately
+- **Reduced client burden**: Rendering computation occurs server-side, making lightweight client devices perform well
+
+### Zero JavaScript by Default
+
+Astro ships absolutely no JavaScript to the client by default. Applications consist entirely of static HTML and CSS. This radical constraint focuses developers on content and structure rather than unnecessary JavaScript complexity.
+
+When interactivity is required, developers explicitly add it through island hydration directives like `client:load` or `client:idle`. This opt-in approach means JavaScript only loads for components that actually need it, dramatically reducing payload sizes.
+
+## The Astro Framework
+
+### Component Model
+
+Astro components use a file-based format with `.astro` file extension. Components are structured with a frontmatter script section and an HTML template:
+
+```astro
+---
+import Button from './Button.astro';
+const title = "My Page";
+---
+
+<html>
+  <head>
+    <title>{title}</title>
+  </head>
+  <body>
+    <h1>{title}</h1>
+    <Button />
+  </body>
+</html>
+```
+
+The frontmatter section executes on the server, importing dependencies, fetching data, and preparing values for the template. The template renders HTML with JavaScript expressions for dynamic values. Astro components are purely HTML with minimal overhead—no virtual DOM, no client-side JavaScript unless explicitly added.
+
+### Integration with UI Frameworks
+
+Astro's "Bring Your Own Framework" philosophy enables seamless integration with popular JavaScript frameworks. Developers install framework integrations via `astro add`:
+
+```bash
+astro add react vue svelte
+```
+
+Framework components are imported directly into Astro:
+
+```astro
+---
+import ReactCounter from './ReactCounter.jsx';
+import VueWidget from './VueWidget.vue';
+---
+
+<ReactCounter client:load />
+<VueWidget client:idle />
+```
+
+When framework integrations are added, Astro automatically transforms components into islands. Each framework component uses directives controlling when hydration occurs:
+
+- `client:load`: Hydrate immediately (blocking)
+- `client:idle`: Hydrate when the browser is idle
+- `client:visible`: Hydrate when scrolled into view
+- `client:only`: Skip server rendering, hydrate only on client
+
+### Scoped Styling
+
+Astro components support scoped CSS, automatically applying styles only to that component:
+
+```astro
+---
+// Component script
+---
+
+<style>
+  /* These styles apply only to elements in this component */
+  h1 {
+    color: blue;
+  }
+</style>
+
+<h1>Scoped Title</h1>
+```
+
+CSS is extracted at build time and optimized, shipping only the styles needed for each page.
+
+## Content Collections
+
+Content Collections provide a structured, type-safe way to manage sets of similar content. Collections help organize content, enable TypeScript type checking, and provide automatic validation against defined schemas.
+
+### Defining Collections
+
+Collections are defined in `src/content/config.ts`:
+
+```typescript
+import { defineCollection, z } from 'astro:content';
+
+const blogCollection = defineCollection({
+  type: 'content',
+  schema: z.object({
+    title: z.string(),
+    author: z.string(),
+    pubDate: z.date(),
+    tags: z.array(z.string()).optional(),
+  }),
+});
+
+export const collections = {
+  blog: blogCollection,
+};
+```
+
+Content entries are stored in the corresponding directory:
+
+```
+src/content/blog/
+  ├── first-post.md
+  ├── second-post.md
+  └── third-post.md
+```
+
+### Querying Content
+
+Two main helper functions query collections:
+
+- `getCollection()`: Retrieves all entries from a collection
+- `getEntry()`: Retrieves a single entry by slug
+
+```typescript
+import { getCollection, getEntry } from 'astro:content';
+
+// Get all blog posts
+const allPosts = await getCollection('blog');
+
+// Get specific post
+const post = await getEntry('blog', 'first-post');
+
+// Render content to HTML
+const { Content, headings } = await post.render();
+```
+
+### Content Layer API
+
+The new Content Layer API (Astro v5.0+) provides a more performant, scalable approach to managing content. Built-in loaders handle local markdown, MDX, Markdoc, YAML, TOML, and JSON files. Custom loaders can fetch content from remote sources:
+
+```typescript
+import { defineCollection, z } from 'astro:content';
+import { loader } from 'astro:content';
+
+const blog = defineCollection({
+  loader: loader.glob({ pattern: '**/*.md', base: './src/data/blog' }),
+  schema: z.object({
+    title: z.string(),
+    pubDate: z.date(),
+  }),
+});
+```
+
+## Routing and File-Based Organization
+
+### File-Based Routing
+
+Astro uses file-based routing where the directory structure automatically maps to URLs:
+
+- `src/pages/index.astro` → `/`
+- `src/pages/about.astro` → `/about`
+- `src/pages/blog/[id].astro` → `/blog/:id` (dynamic segment)
+- `src/pages/docs/[...slug].astro` → `/docs/any/path/here` (catch-all route)
+
+### Layouts
+
+Layouts define common structure shared across multiple pages:
+
+```astro
+---
+// src/layouts/Layout.astro
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+
+const { title } = Astro.props;
+---
+
+<html>
+  <head>
+    <title>{title}</title>
+  </head>
+  <body>
+    <Header />
+    <main>
+      <slot />
+    </main>
+    <Footer />
+  </body>
+</html>
+```
+
+Pages use layouts via the `Layout` component:
+
+```astro
+---
+// src/pages/index.astro
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Home">
+  <h1>Welcome</h1>
+</Layout>
+```
+
+## Rendering Modes
+
+### Static Site Generation (SSG)
+
+Default mode. Pages pre-render at build time into static HTML files:
+
+```bash
+npm run build  # Generates static files in dist/
+```
+
+Ideal for content that doesn't change frequently—blogs, documentation, marketing sites. Static sites deploy anywhere: CDNs, GitHub Pages, Netlify, Vercel.
+
+### On-Demand Rendering (SSR)
+
+Dynamic rendering per request using adapters. Requires an adapter (Node.js, Deno, Cloudflare Workers, etc.):
+
+```javascript
+// astro.config.mjs
+import { defineConfig } from 'astro/config';
+import node from '@astrojs/node';
+
+export default defineConfig({
+  output: 'server',
+  adapter: node(),
+});
+```
+
+On-demand rendering supports personalization, real-time data, and request-based features (authentication, headers, cookies).
+
+### Hybrid Rendering
+
+Mix static and dynamic pages in a single project. Configure globally then override per-route:
+
+```javascript
+// astro.config.mjs
+export default defineConfig({
+  output: 'hybrid',
+});
+```
+
+Then in individual pages:
+
+```astro
+---
+export const prerender = false;  // Server-render this page
+---
+```
+
+Hybrid rendering provides the best of both approaches—static performance for most content with dynamic capabilities where needed.
+
+## Adapters and Deployment
+
+Adapters configure Astro for specific deployment environments. Official adapters support:
+
+- **Node.js**: Express, Fastify, or standalone HTTP servers
+- **Cloudflare**: Cloudflare Pages and Workers
+- **Vercel**: Serverless functions with edge runtime
+- **Netlify**: Netlify Functions with server-side rendering
+- **Deno**: Deno Deploy for edge computing
+- **AWS**: Lambda, Amplify, and other AWS services
+- **Bun**: Bun runtime for rapid deployments
+
+Each adapter handles platform-specific build configuration, environment variables, and API patterns. Installation is straightforward:
+
+```bash
+astro add cloudflare  # Automatically installs and configures adapter
+```
+
+## Integrations
+
+Beyond adapters, integrations add functionality:
+
+### Framework Integrations
+
+Enable React, Vue, Svelte, Solid, Lit, Preact components within Astro.
+
+### Styling Integrations
+
+- **Tailwind CSS**: Utility-first CSS framework
+- **UnoCSS**: Instant on-demand atomic CSS engine
+- **Postcss**: CSS transformation with plugins
+
+### Performance and SEO
+
+- **Image**: Optimize images with lazy loading and format conversion
+- **Sitemap**: Generate XML sitemaps for search engines
+- **Partytown**: Move third-party scripts to web workers (non-blocking)
+
+### CMS Integrations
+
+Official integrations with headless CMS platforms:
+
+- Contentful
+- Storyblok
+- Strapi
+- Sanity
+- WordPress
+
+Community integrations support additional CMS platforms and services.
+
+## Development Experience
+
+### Hot Module Replacement (HMR)
+
+Vite powers Astro's development server with instant HMR. Changes to components, styles, or content reflect immediately without page reloads, enabling rapid iteration.
+
+### TypeScript Support
+
+Full TypeScript support with automatic type generation for content collections and component props. IDEs provide excellent autocompletion and type checking.
+
+### Debugging
+
+Astro provides multiple debugging approaches:
+
+- **Browser DevTools**: Debug islands that hydrated with JavaScript
+- **Server Logging**: Console output from server-side rendering
+- **Source Maps**: TypeScript/JSX maps to original sources
+
+## Performance Characteristics
+
+### Bundle Size
+
+Astro applications ship dramatically less JavaScript:
+
+- **No JavaScript sites**: Content-only sites send zero bytes of framework code
+- **Interactive sites**: Only interactive component frameworks hydrate, reducing typical bundles by 50-90% compared to SPA frameworks
+
+### Initial Load Performance
+
+Studies show significant performance improvements:
+
+- **Largest Contentful Paint (LCP)**: Sub-500ms with optimized server rendering
+- **First Input Delay (FID)**: Sub-50ms as only islands require JavaScript
+- **Cumulative Layout Shift (CLS)**: Near 0.0 with static HTML rendering
+- **Lighthouse Scores**: 95+ common
+
+### Core Web Vitals
+
+Astro sites naturally achieve excellent Core Web Vitals:
+
+- Server-rendered HTML provides instant visual feedback
+- Static HTML prevents layout shifts
+- Minimal JavaScript reduces input delay
+- Islands load on-demand, not blocking main thread
+
+## Static Asset Optimization
+
+### Image Optimization
+
+The built-in `<Image>` component automatically optimizes images:
+
+```astro
+---
+import { Image } from 'astro:assets';
+import hero from '../images/hero.png';
+---
+
+<Image src={hero} alt="Hero image" />
+```
+
+Features include lazy loading, responsive image generation, format conversion (WebP, AVIF), and srcset generation.
+
+### CSS and Font Optimization
+
+CSS automatically extracts from components and optimizes for each page. Unused styles are removed. Font loading is optimized to prevent layout shifts.
+
+## Ecosystem and Integration
+
+### Official Themes and Starters
+
+Astro provides production-ready starter templates:
+
+- **Blog**: Full-featured blog with content collections
+- **Docs**: Technical documentation site
+- **Portfolio**: Creative portfolio showcase
+- **E-commerce**: Product catalog with shopping cart
+
+### Community Themes and Components
+
+Growing ecosystem of community-built themes, components, and integrations available through npm and GitHub.
+
+### Component Libraries
+
+Projects like Flowbite Astro provide pre-built component collections compatible with Astro's island architecture.
+
+## Advanced Features
+
+### Middleware
+
+Request-level middleware intercepts requests, enabling authentication, logging, redirects, and headers:
+
+```typescript
+// middleware.ts
+import { defineMiddleware } from 'astro:middleware';
+
+export const onRequest = defineMiddleware(async (context, next) => {
+  if (!isAuthenticated(context)) {
+    return new Response(null, { status: 302, headers: { location: '/login' } });
+  }
+  return next();
+});
+```
+
+### API Routes
+
+Astro supports traditional API endpoint files for building APIs:
+
+```typescript
+// src/pages/api/posts.json.ts
+export async function GET() {
+  const posts = await db.query.posts.getAll();
+  return new Response(JSON.stringify(posts));
+}
+```
+
+### Hybrid Content
+
+Combine markdown frontmatter with dynamic fetching:
+
+```astro
+---
+const data = await fetch(`/api/dynamic-data`).then(r => r.json());
+const { Content } = await entry.render();
+---
+
+<Content />
+<p>Dynamic: {data.value}</p>
+```
+
+## SEO and Content Marketing
+
+### Built-in SEO Advantages
+
+Server-rendered HTML provides inherent SEO benefits:
+
+- Complete HTML available to search crawlers
+- No reliance on client-side rendering
+- Fast page loads improve ranking signals
+- No technical SEO issues from hydration mismatches
+
+### SEO Tools and Utilities
+
+- Automatic sitemap generation
+- Structured data support
+- Open Graph and Twitter Card meta tags
+- Canonical links for duplicate prevention
+
+## Comparison with Other Frameworks
+
+### vs. Next.js
+
+- **JavaScript**: Astro ships zero by default; Next.js ships React on every page
+- **Rendering**: Astro defaults to static; Next.js defaults to dynamic
+- **Framework**: Astro is framework-agnostic; Next.js is React-focused
+- **Use case**: Astro excels for content sites; Next.js suits full-stack applications
+
+### vs. Qwik
+
+- **Philosophy**: Astro emphasizes zero JavaScript by default; Qwik uses resumability for minimal JavaScript
+- **Interactivity**: Astro adds islands explicitly; Qwik handles transparently
+- **Performance**: Both achieve excellent performance through different mechanisms
+- **Use case**: Astro better for content; Qwik better for highly interactive apps
+
+### vs. Eleventy (11ty)
+
+- **Framework features**: Astro provides modern component model; Eleventy is more minimal
+- **Developer experience**: Astro includes more built-ins; Eleventy offers more flexibility
+- **Performance**: Both achieve excellent static site performance
+- **Learning curve**: Astro has a slightly steeper learning curve for complex projects
+
+## Roadmap and Future Directions
+
+Astro continues evolving with planned features:
+
+- Enhanced Content Layer API with more powerful content sources
+- Improved performance optimization mechanisms
+- Additional framework integrations
+- Enhanced developer tooling and debugging capabilities
+- Better deployment platform integrations
+
+The project emphasizes stability and backward compatibility while incorporating community feedback and addressing real-world developer needs.
+
+## Key Resources and References
+
+- Official Astro Documentation: https://docs.astro.build
+- Astro GitHub Repository: https://github.com/withastro/astro
+- Astro Integrations: https://astro.build/integrations/
+- Astro Themes: https://astro.build/themes/
+- Astro Official Blog: https://astro.build/blog/
+- Astro Discord Community: https://astro.build/chat/
+- Content Collections Guide: https://docs.astro.build/en/guides/content-collections/
+- Deployment Guides: https://docs.astro.build/en/guides/deploy/
+- Image Optimization: https://docs.astro.build/en/guides/images/
+- Astro Components: https://docs.astro.build/en/basics/astro-components/
+- Framework Integrations: https://docs.astro.build/en/guides/integrations-guide/
+
+## Summary
+
+Astro represents a modern alternative to traditional JavaScript frameworks, specifically optimized for building fast, content-driven websites. Through its islands architecture and zero-JavaScript-by-default approach, Astro achieves exceptional performance while maintaining excellent developer experience through familiar web technologies and optional framework integrations.
+
+Astro's strength lies in its content focus. Whether building blogs, documentation, landing pages, portfolios, or marketing sites, Astro's performance characteristics and developer-friendly tooling make it an excellent choice. The framework's framework-agnostic philosophy enables teams to gradually adopt interactivity without rewriting existing components or abandoning familiar tools.
+
+For teams prioritizing performance, content accessibility, SEO, and developer experience—particularly for content-rich websites—Astro offers compelling advantages over traditional SPAs or even more complex full-stack frameworks. As the web evolves toward prioritizing performance and user experience, Astro's philosophy of shipping zero JavaScript by default and hydrating only what's necessary represents a thoughtful, pragmatic approach to modern web development.
